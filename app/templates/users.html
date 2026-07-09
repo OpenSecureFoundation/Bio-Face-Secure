@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}Utilisateurs — BioAuth{% endblock %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;
+            align-items:center;margin-bottom:6px">
+  <div class="pt"><i class="fa fa-users me-2"></i>Gestion des Utilisateurs</div>
+  <button class="btn-b solid"
+          onclick="document.getElementById('reg-panel').style.display='block'"
+          type="button">
+    <i class="fa fa-plus"></i> Enregistrer un profil
+  </button>
+</div>
+<div class="ps">{{ users|length }} profil(s) enregistré(s)</div>
+
+<!-- ── Panel d'enregistrement ──────────────────────────── -->
+<div id="reg-panel" class="card-b mb-4" style="display:none">
+  <div style="font-size:13px;font-weight:600;color:var(--cyan);margin-bottom:14px">
+    <i class="fa fa-camera me-2"></i>Nouveau profil biométrique
+  </div>
+
+  <!-- Formulaire initial -->
+  <div id="rp-form">
+    <div class="row g-3">
+      <div class="col-md-5">
+        <label style="font-size:11px;color:var(--text2);
+                      margin-bottom:4px;display:block">Nom complet *</label>
+        <input type="text" id="rp-name" class="inp"
+               placeholder="Ex: Jean Dupont" maxlength="50">
+      </div>
+      <div class="col-md-4">
+        <label style="font-size:11px;color:var(--text2);
+                      margin-bottom:4px;display:block">Rôle</label>
+        <select id="rp-role" class="inp">
+          {% for r in roles %}<option>{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3 d-flex align-items-end gap-2">
+        <button type="button" class="btn-b solid flex-fill"
+                id="rp-btn" onclick="adminRegisterStart()">
+          <i class="fa fa-camera"></i> Capturer
+        </button>
+        <button type="button" class="btn-b"
+                onclick="closeRegPanel()">✕</button>
+      </div>
+    </div>
+    <div id="rp-err" class="al al-err mt-3" style="display:none"></div>
+    <div class="al al-info mt-3" style="font-size:12px">
+      <i class="fa fa-circle-info me-2"></i>
+      La webcam s'activera automatiquement — regardez l'objectif (max 10 s).
+    </div>
+  </div>
+
+  <!-- Zone progression -->
+  <div id="rp-progress" style="display:none">
+    <div style="text-align:center;padding:16px 0 10px">
+      <div style="font-size:28px;margin-bottom:8px">📸</div>
+      <div style="font-size:14px;font-weight:600;color:var(--cyan)"
+           id="rp-prog-title">Capture en cours...</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:4px"
+           id="rp-step">Initialisation...</div>
+    </div>
+    <div style="margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;
+                  font-size:11px;color:var(--text2);margin-bottom:4px">
+        <span id="rp-step-lbl">En cours</span>
+        <span id="rp-pct">0%</span>
+      </div>
+      <div class="prog">
+        <div class="prog-b" id="rp-bar" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zone résultat -->
+  <div id="rp-result" style="display:none;text-align:center;padding:12px 0">
+    <div id="rp-res-icon" style="font-size:36px;margin-bottom:8px"></div>
+    <div id="rp-res-title" style="font-size:15px;font-weight:700;
+                                   margin-bottom:4px"></div>
+    <div id="rp-res-msg" style="font-size:12px;color:var(--text2);
+                                  margin-bottom:12px"></div>
+    <button type="button" class="btn-b" onclick="closeRegPanel()">
+      Fermer
+    </button>
+  </div>
+</div>
+
+<!-- ── Tableau utilisateurs (scrollable, CRUD complet) ──── -->
+<div class="card-b" style="padding:0">
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>ID</th><th>Nom</th><th>Rôle</th>
+          <th>Enregistré</th><th>Dernier login</th>
+          <th>Connexions</th><th>Statut</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td style="color:var(--text3)">{{ u.id }}</td>
+          <td style="font-weight:600">{{ u.name }}</td>
+          <td><span class="bx bx-info">{{ u.role }}</span></td>
+          <td style="color:var(--text2)">{{ u.created_at or '—' }}</td>
+          <td style="color:var(--text2)">{{ u.last_login or 'Jamais' }}</td>
+          <td style="text-align:center">{{ u.login_count }}</td>
+          <td>
+            <span class="bx {{ 'bx-ok' if u.active else 'bx-err' }}">
+              {{ 'Actif' if u.active else 'Inactif' }}
+            </span>
+          </td>
+          <td>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+              <!-- Modifier rôle -->
+              <form method="POST"
+                    action="{{ url_for('admin.users_role', uid=u.id) }}"
+                    style="display:inline">
+                <select name="role" class="inp"
+                        style="padding:4px 7px;font-size:11px;
+                               width:auto;min-width:110px"
+                        onchange="this.form.submit()">
+                  {% for r in roles %}
+                  <option {{ 'selected' if u.role==r }}>{{ r }}</option>
+                  {% endfor %}
+                </select>
+              </form>
+              <!-- Activer / Désactiver -->
+              <form method="POST"
+                    action="{{ url_for('admin.users_toggle', uid=u.id) }}"
+                    style="display:inline">
+                <button type="submit"
+                        class="btn-b {{ 'danger' if u.active else 'success' }}"
+                        style="padding:5px 9px;font-size:11px"
+                        title="{{ 'Désactiver' if u.active else 'Activer' }}">
+                  <i class="fa {{ 'fa-pause' if u.active else 'fa-play' }}"></i>
+                </button>
+              </form>
+              <!-- Supprimer -->
+              <form method="POST"
+                    action="{{ url_for('admin.users_delete', uid=u.id) }}"
+                    style="display:inline"
+                    onsubmit="return confirm(
+                      'Supprimer définitivement « {{ u.name }} » ?')">
+                <button type="submit"
+                        class="btn-b danger"
+                        style="padding:5px 9px;font-size:11px">
+                  <i class="fa fa-trash"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8"
+              style="text-align:center;color:var(--text3);padding:30px">
+            Aucun utilisateur enregistré.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let rpPoll = null;
+
+function adminRegisterStart() {
+  const name = document.getElementById('rp-name').value.trim();
+  const role = document.getElementById('rp-role').value;
+  const err  = document.getElementById('rp-err');
+  err.style.display = 'none';
+
+  if (!name || name.length < 2) {
+    err.textContent    = 'Nom invalide (minimum 2 caractères).';
+    err.style.display  = 'block';
+    return;
+  }
+
+  document.getElementById('rp-btn').disabled = true;
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('role', role);
+
+  fetch('/admin/users/register/start', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(d => {
+      if (!d.started) {
+        err.textContent   = d.error || 'Erreur.';
+        err.style.display = 'block';
+        document.getElementById('rp-btn').disabled = false;
+        return;
+      }
+      document.getElementById('rp-form').style.display     = 'none';
+      document.getElementById('rp-progress').style.display = 'block';
+      document.getElementById('rp-prog-title').textContent =
+        'Capture de ' + d.name + '...';
+      rpPoll = setInterval(pollRpStatus, 500);
+    });
+}
+
+function pollRpStatus() {
+  fetch('/admin/users/register/status')
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('rp-bar').style.width    = d.progress + '%';
+      document.getElementById('rp-pct').textContent    = d.progress + '%';
+      document.getElementById('rp-step-lbl').textContent = d.step_msg || '';
+      if (d.done) {
+        clearInterval(rpPoll);
+        showRpResult(d);
+      }
+    });
+}
+
+function showRpResult(d) {
+  document.getElementById('rp-progress').style.display = 'none';
+  document.getElementById('rp-result').style.display   = 'block';
+  if (d.ok) {
+    document.getElementById('rp-res-icon').innerHTML =
+      '<span style="color:var(--ok)">✓</span>';
+    document.getElementById('rp-res-title').textContent = 'Enregistrement réussi !';
+    document.getElementById('rp-res-title').style.color = 'var(--ok)';
+    document.getElementById('rp-res-msg').textContent   = d.message;
+    // Recharger la page après 2s pour afficher le nouveau profil
+    setTimeout(() => location.reload(), 2000);
+  } else {
+    document.getElementById('rp-res-icon').innerHTML =
+      '<span style="color:var(--err)">✗</span>';
+    document.getElementById('rp-res-title').textContent = 'Échec';
+    document.getElementById('rp-res-title').style.color = 'var(--err)';
+    document.getElementById('rp-res-msg').textContent   = d.message;
+  }
+}
+
+function closeRegPanel() {
+  if (rpPoll) clearInterval(rpPoll);
+  document.getElementById('reg-panel').style.display    = 'none';
+  document.getElementById('rp-form').style.display      = 'block';
+  document.getElementById('rp-progress').style.display  = 'none';
+  document.getElementById('rp-result').style.display    = 'none';
+  document.getElementById('rp-err').style.display       = 'none';
+  document.getElementById('rp-btn').disabled            = false;
+  document.getElementById('rp-name').value              = '';
+}
+</script>
+{% endblock %}

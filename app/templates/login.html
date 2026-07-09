@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% block title %}Authentification — BioAuth{% endblock %}
+{% block content %}
+
+<div class="pt">
+  <i class="fa fa-fingerprint me-2"></i>Authentification Biométrique
+</div>
+<div class="ps">
+  La caméra de <strong>votre appareil</strong> sera utilisée.
+  <a href="{{ url_for('auth.register_page') }}"
+     style="color:var(--cyan);margin-left:10px">
+    Pas inscrit ? S'enregistrer →
+  </a>
+</div>
+
+<div class="row g-3">
+  <!-- Webcam locale (WebRTC) -->
+  <div class="col-12 col-md-6 col-lg-6">
+    <div class="card-b ac">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);
+                  margin-bottom:10px">
+        <i class="fa fa-video me-2" style="color:var(--cyan)"></i>
+        Votre caméra
+      </div>
+
+      <!-- Vidéo locale -->
+      <div style="position:relative;border-radius:11px;overflow:hidden;
+                  background:#000;aspect-ratio:4/3;width:100%">
+        <video id="local-video" autoplay playsinline muted
+               style="width:100%;height:100%;object-fit:cover;
+                      display:block"></video>
+        <canvas id="local-canvas"
+                style="position:absolute;top:0;left:0;
+                       width:100%;height:100%;display:none"></canvas>
+        <!-- Placeholder -->
+        <div id="cam-ph"
+             style="position:absolute;inset:0;display:flex;
+                    align-items:center;justify-content:center;
+                    flex-direction:column;color:#555;background:#0a0e1a">
+          <i class="fa fa-camera"
+             style="font-size:36px;margin-bottom:10px;color:#3A5A85"></i>
+          <span style="font-size:12px;color:#3A5A85">
+            Cliquez sur "Lancer"
+          </span>
+        </div>
+      </div>
+
+      <!-- Instructions -->
+      <div class="al al-info mt-3" style="font-size:12px">
+        <i class="fa fa-eye me-2"></i>
+        Regardez la caméra →
+        <strong>Clignez des yeux</strong> (1× suffit)
+        ou bougez légèrement la tête
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn-b solid flex-fill" id="btn-start"
+                onclick="doStart()" type="button">
+          <i class="fa fa-play"></i> Lancer
+        </button>
+        <button class="btn-b" onclick="doReset()" type="button"
+                title="Réinitialiser">
+          <i class="fa fa-rotate"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pipeline + Résultat -->
+  <div class="col-12 col-md-6 col-lg-6">
+    <div class="card-b mb-3">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);
+                  margin-bottom:12px">
+        <i class="fa fa-microchip me-2" style="color:var(--cyan)"></i>
+        Vérification en cours
+      </div>
+
+      {% for i, label, hint in [
+        (1,'Détection faciale',''),
+        (2,'Encodage 128D',''),
+        (3,'Liveness check','clignez des yeux'),
+        (4,'Comparaison BDD',''),
+      ] %}
+      <div class="pip-row">
+        <div class="dot" id="d{{ i }}"></div>
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:600">
+            {{ label }}
+            {% if hint %}
+            <span style="font-size:10px;color:var(--text3);font-weight:normal">
+              ({{ hint }})
+            </span>
+            {% endif %}
+          </div>
+          <div style="font-size:11px;color:var(--text3)"
+               id="s{{ i }}">En attente</div>
+        </div>
+      </div>
+      {% endfor %}
+
+      <div style="margin-top:12px">
+        <div style="display:flex;justify-content:space-between;
+                    font-size:11px;color:var(--text2);margin-bottom:4px">
+          <span id="prog-lbl">En attente</span>
+          <span id="pct">0%</span>
+        </div>
+        <div class="prog">
+          <div class="prog-b" id="pb" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Timer liveness -->
+      <div id="timer-zone" style="display:none;margin-top:8px;
+           text-align:center">
+        <span style="font-size:11px;color:var(--text2)">
+          Temps restant :
+        </span>
+        <span id="timer-val"
+              style="color:var(--cyan);font-weight:700;font-size:13px">
+          30s
+        </span>
+      </div>
+    </div>
+
+    <!-- Résultat -->
+    <div class="card-b" id="res-card" style="display:none">
+      <div id="res-icon"
+           style="font-size:44px;text-align:center;margin-bottom:8px">
+      </div>
+      <div id="res-name"
+           style="font-size:17px;font-weight:700;text-align:center;
+                  margin-bottom:6px"></div>
+      <div id="res-sub"
+           style="font-size:12px;color:var(--text2);text-align:center;
+                  margin-bottom:12px;white-space:pre-line"></div>
+      <div style="background:var(--card2);border-radius:9px;
+                  padding:12px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;
+                    margin-bottom:5px">
+          <span style="font-size:11px;color:var(--text2)">
+            Score similarité
+          </span>
+          <span id="res-score"
+                style="font-size:13px;font-weight:700"></span>
+        </div>
+        <div class="prog">
+          <div class="prog-b" id="res-pb" style="width:0%"></div>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">
+          Seuil requis : 50%
+        </div>
+      </div>
+      <a href="/session" id="btn-session"
+         class="btn-b solid w-100"
+         style="display:none;text-decoration:none;justify-content:center">
+        <i class="fa fa-arrow-right"></i> Accéder à mon espace
+      </a>
+      <button id="btn-retry" onclick="doReset()" type="button"
+              class="btn-b w-100 mt-2"
+              style="display:none;justify-content:center">
+        <i class="fa fa-rotate"></i> Réessayer
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ── Variables globales ─────────────────────────────────── */
+let _stream     = null;   // MediaStream webcam locale
+let _sendLoop   = null;   // setInterval d'envoi des frames
+let _timerInt   = null;   // compte à rebours liveness
+let _timerSec   = 30;
+let _running    = false;
+const SEND_INTERVAL = 200; // ms entre chaque frame envoyée (5 fps)
+
+/* ── Démarrer ───────────────────────────────────────────── */
+async function doStart() {
+  doReset();
+  const btn = document.getElementById('btn-start');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Démarrage...';
+
+  // 1. Activer la caméra locale (WebRTC)
+  try {
+    _stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        width:  { ideal: 640 },
+        height: { ideal: 480 },
+        facingMode: 'user'
+      },
+      audio: false
+    });
+    const video = document.getElementById('local-video');
+    video.srcObject = _stream;
+    document.getElementById('cam-ph').style.display = 'none';
+    await new Promise(r => video.onloadedmetadata = r);
+    video.play();
+  } catch (err) {
+    showMsg(
+      'Caméra inaccessible : ' + err.message +
+      '. Autorisez l\'accès à la caméra dans votre navigateur.',
+      'err'
+    );
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa fa-play"></i> Lancer';
+    return;
+  }
+
+  // 2. Informer le serveur
+  try {
+    const r = await fetch('/api/auth/start', { method: 'POST' });
+    const d = await r.json();
+    if (d.locked) {
+      showMsg(d.message || 'Trop de tentatives.', 'err');
+      stopCamera();
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa fa-play"></i> Lancer';
+      return;
+    }
+  } catch (e) {
+    showMsg('Erreur réseau : ' + e.message, 'err');
+    stopCamera();
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa fa-play"></i> Lancer';
+    return;
+  }
+
+  _running = true;
+  btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Analyse...';
+
+  // 3. Boucle d'envoi des frames au serveur
+  _sendLoop = setInterval(sendFrame, SEND_INTERVAL);
+}
+
+/* ── Capturer et envoyer un frame ───────────────────────── */
+async function sendFrame() {
+  if (!_running) return;
+
+  const video  = document.getElementById('local-video');
+  const canvas = document.getElementById('local-canvas');
+
+  if (!video.videoWidth) return;
+
+  // Dessiner sur canvas temporaire
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+
+  // Convertir en JPEG base64
+  const frameData = canvas.toDataURL('image/jpeg', 0.7);
+
+  try {
+    const r = await fetch('/api/auth/frame', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ frame: frameData })
+    });
+    const d = await r.json();
+    updateUI(d);
+
+    if (d.status === 'done') {
+      clearInterval(_sendLoop);
+      _sendLoop = null;
+      _running  = false;
+      stopTimer();
+      showResult(d);
+      const btn = document.getElementById('btn-start');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa fa-play"></i> Lancer';
+    }
+  } catch (e) {
+    console.warn('sendFrame error:', e);
+  }
+}
+
+/* ── Mettre à jour le pipeline ──────────────────────────── */
+function updateUI(d) {
+  const step = d.step || 0;
+  const pcts = { 0:0, 1:20, 2:45, 3:70, 4:92, 5:100 };
+  const p    = pcts[step] || 0;
+
+  document.getElementById('pb').style.width    = p + '%';
+  document.getElementById('pct').textContent   = p + '%';
+  document.getElementById('prog-lbl').textContent = d.status || '';
+
+  const states = {
+    1: ['on','idle','idle','idle'],
+    2: ['done','on','idle','idle'],
+    3: ['done','done','on','idle'],
+    4: ['done','done','done','on'],
+    5: ['done','done','done','done'],
+  };
+  if (states[step]) {
+    states[step].forEach((s, i) => {
+      const dot = document.getElementById('d' + (i+1));
+      dot.className = 'dot' + (s==='idle' ? '' : ' '+s) +
+                      (s==='on' ? ' pulse' : '');
+    });
+  }
+
+  const subs = {
+    1: ['Détection...','En attente','En attente','En attente'],
+    2: ['✓ Détecté','Encodage...','En attente','En attente'],
+    3: ['✓ Détecté','✓ Encodé', d.status || 'Clignez !','En attente'],
+    4: ['✓ Détecté','✓ Encodé','✓ Validée','Comparaison...'],
+    5: ['✓ Détecté','✓ Encodé','✓ Validée','✓ Comparé'],
+  };
+  if (subs[step]) {
+    subs[step].forEach((t, i) => {
+      document.getElementById('s'+(i+1)).textContent = t;
+    });
+  }
+
+  // Démarrer timer au step 3
+  if (step === 3 && _timerInt === null) startTimer();
+}
+
+/* ── Timer liveness ─────────────────────────────────────── */
+function startTimer() {
+  _timerSec = 30;
+  document.getElementById('timer-zone').style.display = 'block';
+  _timerInt = setInterval(() => {
+    _timerSec--;
+    const el = document.getElementById('timer-val');
+    el.textContent = _timerSec + 's';
+    if (_timerSec <= 10) el.style.color = 'var(--err)';
+    if (_timerSec <= 0)  stopTimer();
+  }, 1000);
+}
+
+function stopTimer() {
+  if (_timerInt) { clearInterval(_timerInt); _timerInt = null; }
+  document.getElementById('timer-zone').style.display = 'none';
+}
+
+/* ── Afficher le résultat ───────────────────────────────── */
+function showResult(d) {
+  stopCamera();
+  const card = document.getElementById('res-card');
+  card.style.display = 'block';
+
+  if (d.ok) {
+    document.getElementById('res-icon').innerHTML =
+      '<div style="text-align:center">' +
+      '<span style="color:var(--ok);font-size:50px">✓</span></div>';
+    document.getElementById('res-name').textContent =
+      'Accès accordé !';
+    document.getElementById('res-name').style.color = 'var(--ok)';
+    document.getElementById('res-sub').textContent  =
+      'Bienvenue, ' + d.user_name;
+    document.getElementById('res-score').textContent =
+      d.score.toFixed(1) + '%';
+    document.getElementById('res-score').style.color = 'var(--ok)';
+    document.getElementById('res-pb').style.width   = d.score + '%';
+    document.getElementById('res-pb').style.background = 'var(--ok)';
+    document.getElementById('btn-session').style.display = 'flex';
+    document.getElementById('btn-retry').style.display   = 'none';
+    setTimeout(() => { window.location.href = '/session'; }, 1800);
+  } else {
+    document.getElementById('res-icon').innerHTML =
+      '<div style="text-align:center">' +
+      '<span style="color:var(--err);font-size:50px">✗</span></div>';
+    document.getElementById('res-name').textContent = 'Accès refusé';
+    document.getElementById('res-name').style.color = 'var(--err)';
+    document.getElementById('res-sub').textContent  =
+      d.reason || 'Authentification échouée.';
+    document.getElementById('res-score').textContent =
+      d.score ? d.score.toFixed(1) + '%' : '—';
+    document.getElementById('res-score').style.color = 'var(--err)';
+    document.getElementById('res-pb').style.width    =
+      (d.score || 0) + '%';
+    document.getElementById('res-pb').style.background = 'var(--err)';
+    document.getElementById('btn-retry').style.display   = 'flex';
+    document.getElementById('btn-session').style.display = 'none';
+  }
+}
+
+/* ── Arrêter la caméra ──────────────────────────────────── */
+function stopCamera() {
+  if (_stream) {
+    _stream.getTracks().forEach(t => t.stop());
+    _stream = null;
+  }
+  const video = document.getElementById('local-video');
+  video.srcObject = null;
+  document.getElementById('cam-ph').style.display = 'flex';
+  fetch('/api/auth/stop', { method: 'POST' }).catch(() => {});
+}
+
+/* ── Réinitialiser ──────────────────────────────────────── */
+function doReset() {
+  _running = false;
+  if (_sendLoop) { clearInterval(_sendLoop); _sendLoop = null; }
+  stopTimer();
+  stopCamera();
+
+  [1,2,3,4].forEach(i => {
+    document.getElementById('d'+i).className = 'dot';
+    document.getElementById('s'+i).textContent = 'En attente';
+  });
+  document.getElementById('pb').style.width       = '0%';
+  document.getElementById('pct').textContent      = '0%';
+  document.getElementById('prog-lbl').textContent = 'En attente';
+  document.getElementById('res-card').style.display = 'none';
+
+  const btn = document.getElementById('btn-start');
+  btn.disabled  = false;
+  btn.innerHTML = '<i class="fa fa-play"></i> Lancer';
+}
+
+function showMsg(msg, type) {
+  const z = document.querySelector('.mc');
+  const d = document.createElement('div');
+  d.className = 'al al-' + (type === 'err' ? 'err' : 'info');
+  d.innerHTML = '<i class="fa fa-triangle-exclamation me-2"></i>' + msg;
+  z.insertBefore(d, z.firstChild);
+  setTimeout(() => d.remove(), 8000);
+}
+
+// Nettoyage si on quitte la page
+window.addEventListener('beforeunload', () => {
+  stopCamera();
+  fetch('/api/auth/stop', { method: 'POST' }).catch(() => {});
+});
+</script>
+{% endblock %}

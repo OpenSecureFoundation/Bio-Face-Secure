@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Mon espace — BioAuth{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">
+  <div>
+    <div class="pt">🏠 Bienvenue, {{ user_name }}</div>
+    <div class="ps">{{ session_info.get('Rôle','Utilisateur') }} · Connecté le {{ login_time }}</div>
+  </div>
+  <a href="{{ url_for('auth.logout') }}" class="btn-b danger">
+    <i class="fa fa-right-from-bracket"></i> Déconnexion
+  </a>
+</div>
+
+<div class="row g-4">
+  <div class="col-md-6">
+    <div class="card-b" style="border-top:3px solid var(--cyan)">
+      <div style="font-size:13px;font-weight:600;color:var(--cyan);margin-bottom:13px">
+        <i class="fa fa-id-card me-2"></i>Informations de session
+      </div>
+      {% for k,v in session_info.items() %}
+      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text2);font-size:12px">{{ k }}</span>
+        <span style="font-weight:600;font-size:12px">{{ v }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card-b" style="border-top:3px solid var(--ok)">
+      <div style="font-size:13px;font-weight:600;color:var(--ok);margin-bottom:13px">
+        <i class="fa fa-shield-halved me-2"></i>Statut biométrique
+      </div>
+      {% for item in bio_status %}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text2);font-size:12px">{{ item.label }}</span>
+        <span class="bx bx-ok">{{ item.value }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col-12">
+    <div class="card-b">
+      <div style="font-size:13px;font-weight:600;color:var(--warn);margin-bottom:13px">
+        <i class="fa fa-clock me-2"></i>Mes 5 dernières authentifications
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>Heure</th><th>Verdict</th><th>Score</th><th>Liveness</th><th>Note</th></tr>
+          </thead>
+          <tbody>
+            {% for lg in recent_logs %}
+            <tr>
+              <td>{{ lg.timestamp }}</td>
+              <td><span class="bx {{ 'bx-ok' if lg.verdict=='ACCORDÉ' else 'bx-err' }}">{{ lg.verdict }}</span></td>
+              <td>{{ '%.1f%%'|format(lg.score) if lg.score else '—' }}</td>
+              <td>{{ '✓' if lg.liveness_ok else '✗' }}</td>
+              <td style="color:var(--text2)">{{ lg.note }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Aucun historique</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

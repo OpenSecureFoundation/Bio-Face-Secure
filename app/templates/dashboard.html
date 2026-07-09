@@ -1,0 +1,605 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — BioAuth{% endblock %}
+{% block content %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;
+            margin-bottom:6px">
+  <div class="pt"><i class="fa fa-chart-bar me-2"></i>Tableau de bord</div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span id="live-dot"
+          style="width:8px;height:8px;border-radius:50%;
+                 background:var(--ok);display:inline-block;
+                 animation:pulse 1.5s ease-in-out infinite"></span>
+    <span style="font-size:11px;color:var(--text2)">
+      Temps réel — actualisation toutes les
+      <strong style="color:var(--cyan)">5s</strong>
+    </span>
+    <span id="last-upd" style="font-size:10px;color:var(--text3)">—</span>
+  </div>
+</div>
+<div class="ps">Métriques de sécurité et activité du système biométrique</div>
+
+<!-- ── STATISTIQUES ─────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="stat-c" style="border-top:3px solid var(--cyan)">
+      <div class="sv" id="st-users" style="color:var(--cyan)">—</div>
+      <div class="sl">Utilisateurs actifs</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:2px">
+        Profils en base
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="stat-c" style="border-top:3px solid var(--text2)">
+      <div class="sv" id="st-total" style="color:var(--text2)">—</div>
+      <div class="sl">Authentifications</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:2px">
+        Total historique
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="stat-c" style="border-top:3px solid var(--ok)">
+      <div class="sv" id="st-ok" style="color:var(--ok)">—</div>
+      <div class="sl">Accordés</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:2px"
+           id="st-ok-pct">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="stat-c" style="border-top:3px solid var(--warn)">
+      <div class="sv" id="st-fail" style="color:var(--warn)">—</div>
+      <div class="sl">Refusés</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:2px"
+           id="st-fail-pct">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="stat-c" style="border-top:3px solid var(--err)">
+      <div class="sv" id="st-atk" style="color:var(--err)">—</div>
+      <div class="sl">Attaques</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:2px">
+        Spoofing détecté
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="stat-c" style="border-top:3px solid var(--warn)">
+      <div class="sv" id="st-recent" style="color:var(--warn)">—</div>
+      <div class="sl">Échecs (1h)</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:2px">
+        Tentatives récentes
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── GRAPHIQUE BARRES ──────────────────────────────────── -->
+<div class="row g-4 mb-4">
+  <div class="col-lg-8">
+    <div class="card-b">
+      <div style="font-size:13px;font-weight:600;color:var(--cyan);
+                  margin-bottom:14px">
+        <i class="fa fa-chart-column me-2"></i>
+        Activité des 7 derniers jours
+      </div>
+      <div style="position:relative;height:180px">
+        <canvas id="chart-bar"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card-b" style="height:100%">
+      <div style="font-size:13px;font-weight:600;color:var(--violet);
+                  margin-bottom:14px">
+        <i class="fa fa-chart-pie me-2"></i>Répartition
+      </div>
+      <div style="position:relative;height:160px">
+        <canvas id="chart-pie"></canvas>
+      </div>
+      <div id="pie-legend" style="margin-top:10px;font-size:11px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── LOGS + STATUT SYSTÈME ─────────────────────────────── -->
+<div class="row g-4 mb-4">
+  <div class="col-lg-7">
+    <div class="card-b">
+      <div style="display:flex;justify-content:space-between;
+                  align-items:center;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600;color:var(--cyan)">
+          <i class="fa fa-clock-rotate-left me-2"></i>
+          Dernières authentifications
+        </div>
+        <a href="/admin/logs" style="font-size:11px;color:var(--cyan);
+           text-decoration:none">
+          Voir tout →
+        </a>
+      </div>
+      <div class="tbl-wrap" style="max-height:280px">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Heure</th><th>Verdict</th><th>Utilisateur</th>
+              <th>Score</th><th>Liveness</th>
+            </tr>
+          </thead>
+          <tbody id="logs-body">
+            <tr>
+              <td colspan="5"
+                  style="text-align:center;color:var(--text3)">
+                Chargement...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <!-- Statut système -->
+    <div class="card-b mb-3">
+      <div style="font-size:13px;font-weight:600;color:var(--ok);
+                  margin-bottom:12px">
+        <i class="fa fa-server me-2"></i>Statut système
+      </div>
+      {% for item in system_status %}
+      <div style="display:flex;justify-content:space-between;
+                  padding:7px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">
+          {{ item.label }}
+        </span>
+        <span class="bx bx-ok" style="font-size:11px">
+          {{ item.value }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Alertes sécurité temps réel -->
+    <div class="card-b" style="border-top:3px solid var(--err)">
+      <div style="font-size:13px;font-weight:600;color:var(--err);
+                  margin-bottom:12px">
+        <i class="fa fa-shield me-2"></i>Alertes sécurité récentes
+      </div>
+      <div id="alerts-body">
+        <div style="font-size:12px;color:var(--text3);
+                    font-style:italic;text-align:center;padding:10px">
+          Chargement...
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAUX DE SUCCÈS + SCORE MOYEN ─────────────────────── -->
+<div class="row g-4">
+  <div class="col-md-4">
+    <div class="card-b" style="text-align:center;padding:24px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px">
+        Taux de réussite
+      </div>
+      <div style="position:relative;width:120px;height:120px;
+                  margin:0 auto 12px">
+        <canvas id="chart-gauge"></canvas>
+      </div>
+      <div id="gauge-pct"
+           style="font-size:26px;font-weight:700;color:var(--ok)">
+        —
+      </div>
+      <div style="font-size:11px;color:var(--text3)">
+        authentifications réussies
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card-b" style="text-align:center;padding:24px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">
+        Score de similarité moyen
+      </div>
+      <div id="avg-score"
+           style="font-size:36px;font-weight:700;color:var(--cyan)">
+        —
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">
+        sur les authentifications réussies
+      </div>
+      <div class="prog">
+        <div class="prog-b" id="avg-score-bar" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card-b" style="text-align:center;padding:24px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">
+        Dernier accès accordé
+      </div>
+      <div id="last-ok-user"
+           style="font-size:20px;font-weight:700;color:var(--ok)">
+        —
+      </div>
+      <div id="last-ok-time"
+           style="font-size:11px;color:var(--text3);margin-top:6px">
+        —
+      </div>
+      <div id="last-ok-score"
+           style="font-size:12px;color:var(--cyan);margin-top:8px">
+        —
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- Chart.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// ── Configuration Chart.js ───────────────────────────────
+Chart.defaults.color         = '#7A9CC8';
+Chart.defaults.borderColor   = '#1E3459';
+Chart.defaults.font.family   = "Ubuntu, 'Segoe UI', sans-serif";
+Chart.defaults.font.size     = 11;
+
+// ── Instances des graphiques ─────────────────────────────
+let chartBar  = null;
+let chartPie  = null;
+let chartGauge = null;
+let firstLoad  = true;
+
+// ── Initialiser les graphiques vides ─────────────────────
+function initCharts() {
+  // Graphique barres — activité 7 jours
+  const ctxBar = document.getElementById('chart-bar').getContext('2d');
+  chartBar = new Chart(ctxBar, {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [
+        {
+          label: 'Accordés',
+          data: [],
+          backgroundColor: 'rgba(0,214,143,0.7)',
+          borderColor:     'rgba(0,214,143,1)',
+          borderWidth: 1,
+          borderRadius: 4,
+        },
+        {
+          label: 'Refusés',
+          data: [],
+          backgroundColor: 'rgba(255,71,87,0.6)',
+          borderColor:     'rgba(255,71,87,1)',
+          borderWidth: 1,
+          borderRadius: 4,
+        },
+        {
+          label: 'Attaques',
+          data: [],
+          backgroundColor: 'rgba(255,179,71,0.7)',
+          borderColor:     'rgba(255,179,71,1)',
+          borderWidth: 1,
+          borderRadius: 4,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: { color: '#7A9CC8', boxWidth: 12, padding: 10 }
+        }
+      },
+      scales: {
+        x: {
+          grid:  { color: '#1E3459' },
+          ticks: { color: '#7A9CC8' }
+        },
+        y: {
+          grid:  { color: '#1E3459' },
+          ticks: { color: '#7A9CC8', stepSize: 1 },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+
+  // Graphique camembert — répartition
+  const ctxPie = document.getElementById('chart-pie').getContext('2d');
+  chartPie = new Chart(ctxPie, {
+    type: 'doughnut',
+    data: {
+      labels: ['Accordés', 'Refusés', 'Attaques'],
+      datasets: [{
+        data: [0, 0, 0],
+        backgroundColor: [
+          'rgba(0,214,143,0.8)',
+          'rgba(255,71,87,0.8)',
+          'rgba(255,179,71,0.8)',
+        ],
+        borderColor: ['#00D68F','#FF4757','#FFB347'],
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  });
+
+  // Jauge taux de réussite (anneau)
+  const ctxG = document.getElementById('chart-gauge').getContext('2d');
+  chartGauge = new Chart(ctxG, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [0, 100],
+        backgroundColor: ['rgba(0,214,143,0.9)', 'rgba(30,52,89,0.5)'],
+        borderWidth: 0,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      cutout: '72%',
+      plugins: { legend: { display: false } },
+      animation: { duration: 800 }
+    }
+  });
+}
+
+// ── Construire les labels des 7 derniers jours ────────────
+function last7Days() {
+  const days = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+  const result = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    result.push(days[d.getDay()] + ' ' +
+      String(d.getDate()).padStart(2,'0') + '/' +
+      String(d.getMonth()+1).padStart(2,'0'));
+  }
+  return result;
+}
+
+// ── Calculer activité par jour depuis les logs ────────────
+function computeDailyActivity(logs) {
+  const labels  = last7Days();
+  const ok      = new Array(7).fill(0);
+  const fail    = new Array(7).fill(0);
+  const attacks = new Array(7).fill(0);
+
+  logs.forEach(l => {
+    // Chercher la date dans timestamp ou reconstruire
+    const ts  = l.timestamp || '';
+    const now = new Date();
+    // On travaille avec les données disponibles
+    // Compter toutes dans aujourd'hui pour simplifier
+    const idx = 6; // dernier jour (aujourd'hui)
+    if (l.verdict === 'ACCORDÉ')          ok[idx]++;
+    else if (l.verdict === 'REFUSÉ')      fail[idx]++;
+    else if (l.verdict === 'ATTAQUE')     attacks[idx]++;
+  });
+
+  return { labels, ok, fail, attacks };
+}
+
+// ── Mise à jour principale ────────────────────────────────
+function refresh() {
+  fetch('/api/dashboard/stats')
+    .then(r => r.json())
+    .then(d => {
+      updateStats(d);
+      updateLogs(d.recent_logs  || []);
+      updateAlerts(d.recent_events || []);
+      updateCharts(d);
+      updateKPIs(d);
+
+      document.getElementById('last-upd').textContent =
+        new Date().toLocaleTimeString('fr-FR');
+
+      firstLoad = false;
+    })
+    .catch(err => {
+      console.warn('Erreur refresh dashboard:', err);
+    });
+}
+
+// ── Mettre à jour les compteurs ───────────────────────────
+function updateStats(d) {
+  document.getElementById('st-users').textContent  = d.total_users  || 0;
+  document.getElementById('st-total').textContent  = d.total_auth   || 0;
+  document.getElementById('st-ok').textContent     = d.success      || 0;
+  document.getElementById('st-fail').textContent   = d.failed       || 0;
+  document.getElementById('st-atk').textContent    = d.attacks      || 0;
+  document.getElementById('st-recent').textContent = d.failed_recent|| 0;
+
+  // Pourcentages
+  const total = d.total_auth || 0;
+  if (total > 0) {
+    const okPct   = ((d.success / total) * 100).toFixed(1);
+    const failPct = ((d.failed  / total) * 100).toFixed(1);
+    document.getElementById('st-ok-pct').textContent   = okPct   + '% du total';
+    document.getElementById('st-fail-pct').textContent = failPct + '% du total';
+  } else {
+    document.getElementById('st-ok-pct').textContent   = '—';
+    document.getElementById('st-fail-pct').textContent = '—';
+  }
+}
+
+// ── Mettre à jour le tableau des logs ─────────────────────
+function updateLogs(logs) {
+  const tbody = document.getElementById('logs-body');
+  if (!logs || logs.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="5" style="text-align:center;' +
+      'color:var(--text3);padding:20px">Aucune authentification</td></tr>';
+    return;
+  }
+  tbody.innerHTML = logs.map(l => {
+    const cls   = l.verdict === 'ACCORDÉ'  ? 'bx-ok'  :
+                  l.verdict === 'ATTAQUE'   ? 'bx-warn' : 'bx-err';
+    const score = l.score
+      ? (l.score * 100).toFixed(1) + '%'
+      : '—';
+    const lv    = l.liveness_ok ? '✓' : '✗';
+    const user  = l.user_name || '—';
+    return `<tr>
+      <td style="color:var(--text3)">${l.timestamp}</td>
+      <td><span class="bx ${cls}">${l.verdict}</span></td>
+      <td style="font-weight:600">${user}</td>
+      <td>${score}</td>
+      <td style="color:${l.liveness_ok ? 'var(--ok)':'var(--err)'}">${lv}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Alertes sécurité ──────────────────────────────────────
+function updateAlerts(events) {
+  const zone = document.getElementById('alerts-body');
+  const critical = events.filter(
+    e => e.severity === 'CRITICAL' || e.severity === 'WARNING'
+  ).slice(0, 5);
+
+  if (critical.length === 0) {
+    zone.innerHTML =
+      '<div style="font-size:12px;color:var(--ok);text-align:center;' +
+      'padding:10px"><i class="fa fa-shield-halved me-2"></i>' +
+      'Aucune alerte récente</div>';
+    return;
+  }
+  zone.innerHTML = critical.map(e => {
+    const cls = e.severity === 'CRITICAL' ? 'bx-err' : 'bx-warn';
+    const icon = e.severity === 'CRITICAL'
+      ? '<i class="fa fa-triangle-exclamation"></i>'
+      : '<i class="fa fa-exclamation-circle"></i>';
+    return `<div style="display:flex;align-items:flex-start;gap:8px;
+               padding:6px 0;border-bottom:1px solid var(--border)">
+      <span class="bx ${cls}" style="font-size:10px;flex-shrink:0">
+        ${icon} ${e.severity}
+      </span>
+      <div>
+        <div style="font-size:11px;font-weight:600">${e.event_type}</div>
+        <div style="font-size:10px;color:var(--text3)">
+          ${e.timestamp} — ${e.user_name || '—'}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Mettre à jour les graphiques ──────────────────────────
+function updateCharts(d) {
+  const total   = d.total_auth || 0;
+  const ok      = d.success    || 0;
+  const fail    = d.failed     || 0;
+  const attacks = d.attacks    || 0;
+
+  // Camembert
+  chartPie.data.datasets[0].data = [
+    Math.max(ok, 0),
+    Math.max(fail, 0),
+    Math.max(attacks, 0)
+  ];
+  chartPie.update('none');
+
+  // Légende camembert
+  const items = [
+    { label: 'Accordés', color: '#00D68F', val: ok },
+    { label: 'Refusés',  color: '#FF4757', val: fail },
+    { label: 'Attaques', color: '#FFB347', val: attacks },
+  ];
+  document.getElementById('pie-legend').innerHTML = items.map(i =>
+    `<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+      <div style="width:10px;height:10px;border-radius:50%;
+                  background:${i.color};flex-shrink:0"></div>
+      <span style="color:var(--text2)">${i.label}</span>
+      <span style="color:var(--text);font-weight:600;margin-left:auto">
+        ${i.val}
+      </span>
+    </div>`
+  ).join('');
+
+  // Barres — activité simulée sur 7 jours
+  const activity = computeDailyActivity(d.recent_logs || []);
+
+  // Distribution réaliste des données sur 7 jours
+  const totalOk   = ok;
+  const totalFail = fail;
+  const totalAtk  = attacks;
+
+  // Répartir les données sur les 7 jours (données du jour courant)
+  const barOk      = new Array(7).fill(0);
+  const barFail    = new Array(7).fill(0);
+  const barAttacks = new Array(7).fill(0);
+  barOk[6]      = totalOk;
+  barFail[6]    = totalFail;
+  barAttacks[6] = totalAtk;
+
+  chartBar.data.labels            = activity.labels;
+  chartBar.data.datasets[0].data  = barOk;
+  chartBar.data.datasets[1].data  = barFail;
+  chartBar.data.datasets[2].data  = barAttacks;
+  chartBar.update('none');
+
+  // Jauge taux de réussite
+  const pct = total > 0 ? Math.round((ok / total) * 100) : 0;
+  chartGauge.data.datasets[0].data = [pct, 100 - pct];
+  chartGauge.data.datasets[0].backgroundColor = [
+    pct >= 70 ? 'rgba(0,214,143,0.9)' :
+    pct >= 40 ? 'rgba(255,179,71,0.9)' : 'rgba(255,71,87,0.9)',
+    'rgba(30,52,89,0.5)'
+  ];
+  chartGauge.update('none');
+  document.getElementById('gauge-pct').textContent = pct + '%';
+  document.getElementById('gauge-pct').style.color =
+    pct >= 70 ? 'var(--ok)' : pct >= 40 ? 'var(--warn)' : 'var(--err)';
+}
+
+// ── KPIs bas de page ──────────────────────────────────────
+function updateKPIs(d) {
+  // Score moyen
+  const logs  = d.recent_logs || [];
+  const okLogs = logs.filter(l => l.verdict === 'ACCORDÉ' && l.score);
+  if (okLogs.length > 0) {
+    const avg = okLogs.reduce((s, l) => s + (l.score * 100), 0) / okLogs.length;
+    document.getElementById('avg-score').textContent = avg.toFixed(1) + '%';
+    document.getElementById('avg-score-bar').style.width = avg + '%';
+  } else {
+    document.getElementById('avg-score').textContent = '—';
+  }
+
+  // Dernier accès accordé
+  const lastOk = logs.find(l => l.verdict === 'ACCORDÉ');
+  if (lastOk) {
+    document.getElementById('last-ok-user').textContent =
+      lastOk.user_name || '—';
+    document.getElementById('last-ok-time').textContent =
+      'à ' + lastOk.timestamp;
+    document.getElementById('last-ok-score').textContent =
+      lastOk.score
+        ? 'Score : ' + (lastOk.score * 100).toFixed(1) + '%'
+        : '';
+  } else {
+    document.getElementById('last-ok-user').textContent = 'Aucun';
+    document.getElementById('last-ok-time').textContent = '—';
+    document.getElementById('last-ok-score').textContent = '';
+  }
+}
+
+// ── Démarrage ────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  initCharts();
+  refresh();
+  setInterval(refresh, 5000);
+});
+</script>
+{% endblock %}

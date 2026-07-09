@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+{% block title %}Enregistrement — BioAuth{% endblock %}
+{% block content %}
+
+{% if not already_has_users %}
+<div class="al al-info" style="margin-bottom:16px">
+  <i class="fa fa-circle-info me-2"></i>
+  <strong>Première utilisation</strong> — Créez le premier compte.
+</div>
+{% endif %}
+
+<div class="pt">
+  <i class="fa fa-user-plus me-2"></i>Enregistrement biométrique
+</div>
+<div class="ps">
+  Votre caméra sera utilisée pour capturer votre visage.
+  {% if already_has_users %}
+  <a href="{{ url_for('auth.login') }}" style="color:var(--cyan)">
+    Déjà inscrit ? →
+  </a>
+  {% endif %}
+</div>
+
+<div class="row g-3 justify-content-center">
+  <div class="col-12 col-md-7 col-lg-5">
+    <div class="card-b ac">
+      <div style="font-size:13px;font-weight:600;color:var(--cyan);
+                  margin-bottom:16px">
+        <i class="fa fa-camera me-2"></i>Nouveau profil biométrique
+      </div>
+
+      <!-- ── Formulaire ────────────────────────────────── -->
+      <div id="zone-form">
+        <div style="margin-bottom:13px">
+          <label style="font-size:12px;color:var(--text2);
+                        margin-bottom:4px;display:block">
+            Nom complet *
+          </label>
+          <input type="text" id="inp-name" class="inp"
+                 placeholder="Ex: Jean Dupont"
+                 minlength="2" maxlength="50" autofocus>
+        </div>
+        <div style="margin-bottom:18px">
+          <label style="font-size:12px;color:var(--text2);
+                        margin-bottom:4px;display:block">Rôle</label>
+          <select id="inp-role" class="inp">
+            {% for r in roles %}
+            <option
+              {% if r=='Administrateur' and not already_has_users
+              %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div id="zone-err" class="al al-err"
+             style="display:none;margin-bottom:12px"></div>
+        <button class="btn-b solid w-100" id="btn-reg"
+                onclick="doRegister()" type="button">
+          <i class="fa fa-camera"></i> Activer la caméra & Capturer
+        </button>
+        <div class="al al-info mt-3" style="font-size:12px">
+          <i class="fa fa-circle-info me-2"></i>
+          1. Saisissez votre nom → 2. Cliquez →
+          3. Autorisez la caméra → 4. Regardez l'objectif
+        </div>
+      </div>
+
+      <!-- ── Caméra + Progression ──────────────────────── -->
+      <div id="zone-capture" style="display:none">
+        <!-- Vidéo locale -->
+        <div style="position:relative;border-radius:11px;overflow:hidden;
+                    background:#000;aspect-ratio:4/3;width:100%;
+                    margin-bottom:14px">
+          <video id="reg-video" autoplay playsinline muted
+                 style="width:100%;height:100%;object-fit:cover"></video>
+          <canvas id="reg-canvas" style="display:none"></canvas>
+          <div style="position:absolute;bottom:8px;left:50%;
+                      transform:translateX(-50%);
+                      background:rgba(0,0,0,.6);color:#fff;
+                      font-size:11px;padding:4px 12px;border-radius:99px;
+                      white-space:nowrap" id="cam-label-reg">
+            Regardez l'objectif...
+          </div>
+        </div>
+
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;
+                      font-size:11px;color:var(--text2);margin-bottom:4px">
+            <span id="reg-step">Initialisation...</span>
+            <span id="reg-pct">0%</span>
+          </div>
+          <div class="prog">
+            <div class="prog-b" id="reg-bar" style="width:0%"></div>
+          </div>
+        </div>
+        <div class="al al-info" style="font-size:12px">
+          <i class="fa fa-eye me-2"></i>
+          Restez immobile face à la caméra — capture automatique
+        </div>
+      </div>
+
+      <!-- ── Résultat ──────────────────────────────────── -->
+      <div id="zone-result" style="display:none;text-align:center;
+           padding:12px 0">
+        <div id="res-icon" style="font-size:50px;margin-bottom:10px"></div>
+        <div id="res-title"
+             style="font-size:17px;font-weight:700;margin-bottom:6px">
+        </div>
+        <div id="res-msg"
+             style="font-size:12px;color:var(--text2);margin-bottom:16px">
+        </div>
+        <a id="res-link" href="#" class="btn-b solid"
+           style="text-decoration:none;display:none;
+                  justify-content:center"></a>
+        <button id="res-retry" onclick="doReset()" type="button"
+                class="btn-b mt-3 w-100"
+                style="display:none;justify-content:center">
+          <i class="fa fa-rotate"></i> Réessayer
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sécurité -->
+  <div class="col-12 col-md-5 col-lg-4">
+    <div class="card-b">
+      <div style="font-size:13px;font-weight:600;color:var(--text2);
+                  margin-bottom:12px">
+        <i class="fa fa-shield-halved me-2"
+           style="color:var(--ok)"></i>Sécurité
+      </div>
+      {% for k, v in [
+        ('Chiffrement','AES-256 · Fernet'),
+        ('Stockage','Base locale SQLite'),
+        ('Encodage','Vecteur 128D chiffré'),
+        ('Transmission','Frames locales uniquement'),
+        ('Caméra','Votre appareil uniquement'),
+      ] %}
+      <div style="display:flex;justify-content:space-between;
+                  padding:7px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">{{ k }}</span>
+        <span class="bx bx-ok" style="font-size:11px">{{ v }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% if already_has_users %}
+    <div class="card-b mt-3" style="border-top:3px solid var(--cyan)">
+      <div style="font-size:12px;font-weight:600;color:var(--cyan);
+                  margin-bottom:10px">
+        <i class="fa fa-fingerprint me-2"></i>Déjà un compte ?
+      </div>
+      <a href="{{ url_for('auth.login') }}"
+         class="btn-b solid w-100"
+         style="text-decoration:none;justify-content:center">
+        <i class="fa fa-arrow-right"></i> Se connecter
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _regStream  = null;
+let _regLoop    = null;
+let _regRunning = false;
+
+function showZone(id) {
+  ['zone-form','zone-capture','zone-result'].forEach(z => {
+    document.getElementById(z).style.display =
+      (z === id) ? 'block' : 'none';
+  });
+}
+
+async function doRegister() {
+  const name = document.getElementById('inp-name').value.trim();
+  const role = document.getElementById('inp-role').value;
+  const err  = document.getElementById('zone-err');
+  err.style.display = 'none';
+
+  if (!name || name.length < 2) {
+    err.textContent   = 'Nom invalide (minimum 2 caractères).';
+    err.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('btn-reg');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Démarrage...';
+
+  // 1. Activer la caméra
+  try {
+    _regStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal:640 }, height: { ideal:480 },
+               facingMode: 'user' },
+      audio: false
+    });
+    const video = document.getElementById('reg-video');
+    video.srcObject = _regStream;
+    await new Promise(r => video.onloadedmetadata = r);
+    video.play();
+  } catch (e) {
+    err.innerHTML =
+      '<i class="fa fa-triangle-exclamation me-2"></i>' +
+      'Caméra inaccessible : ' + e.message +
+      '. Autorisez la caméra dans votre navigateur.';
+    err.style.display = 'block';
+    btn.disabled  = false;
+    btn.innerHTML = '<i class="fa fa-camera"></i> Activer la caméra & Capturer';
+    return;
+  }
+
+  // 2. Informer le serveur
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('role', role);
+  try {
+    const r = await fetch('/register/start', { method:'POST', body:fd });
+    const d = await r.json();
+    if (!d.started) {
+      err.textContent   = d.error || 'Erreur.';
+      err.style.display = 'block';
+      stopRegCam();
+      btn.disabled  = false;
+      btn.innerHTML = '<i class="fa fa-camera"></i> Activer la caméra & Capturer';
+      return;
+    }
+  } catch (e) {
+    err.textContent   = 'Erreur réseau : ' + e.message;
+    err.style.display = 'block';
+    stopRegCam();
+    btn.disabled  = false;
+    btn.innerHTML = '<i class="fa fa-camera"></i> Activer la caméra & Capturer';
+    return;
+  }
+
+  showZone('zone-capture');
+  _regRunning = true;
+  _regLoop    = setInterval(sendRegFrame, 300);
+}
+
+async function sendRegFrame() {
+  if (!_regRunning) return;
+
+  const video  = document.getElementById('reg-video');
+  const canvas = document.getElementById('reg-canvas');
+  if (!video.videoWidth) return;
+
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  const frameData = canvas.toDataURL('image/jpeg', 0.7);
+
+  try {
+    const r = await fetch('/register/frame', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ frame: frameData })
+    });
+    const d = await r.json();
+
+    document.getElementById('reg-bar').style.width =
+      (d.progress || 0) + '%';
+    document.getElementById('reg-pct').textContent =
+      (d.progress || 0) + '%';
+    document.getElementById('reg-step').textContent =
+      d.step_msg || '...';
+    document.getElementById('cam-label-reg').textContent =
+      d.step_msg || 'Regardez l\'objectif...';
+
+    if (d.done) {
+      clearInterval(_regLoop); _regLoop = null;
+      _regRunning = false;
+      stopRegCam();
+      showRegResult(d);
+    }
+  } catch (e) {
+    console.warn('sendRegFrame:', e);
+  }
+}
+
+function showRegResult(d) {
+  showZone('zone-result');
+  if (d.ok) {
+    document.getElementById('res-icon').innerHTML =
+      '<span style="color:var(--ok)">✓</span>';
+    document.getElementById('res-title').textContent =
+      'Enregistrement réussi !';
+    document.getElementById('res-title').style.color = 'var(--ok)';
+    document.getElementById('res-msg').textContent   = d.message || '';
+    const lnk       = document.getElementById('res-link');
+    lnk.textContent = 'Se connecter →';
+    lnk.href        = '/login';
+    lnk.style.display = 'inline-flex';
+    document.getElementById('res-retry').style.display = 'none';
+    setTimeout(() => { window.location.href = '/login'; }, 2500);
+  } else {
+    document.getElementById('res-icon').innerHTML =
+      '<span style="color:var(--err)">✗</span>';
+    document.getElementById('res-title').textContent = 'Échec';
+    document.getElementById('res-title').style.color = 'var(--err)';
+    document.getElementById('res-msg').textContent   =
+      d.message || 'Une erreur est survenue.';
+    document.getElementById('res-link').style.display  = 'none';
+    document.getElementById('res-retry').style.display = 'block';
+  }
+}
+
+function stopRegCam() {
+  if (_regStream) {
+    _regStream.getTracks().forEach(t => t.stop());
+    _regStream = null;
+  }
+}
+
+function doReset() {
+  _regRunning = false;
+  if (_regLoop) { clearInterval(_regLoop); _regLoop = null; }
+  stopRegCam();
+  showZone('zone-form');
+  document.getElementById('reg-bar').style.width = '0%';
+  document.getElementById('reg-pct').textContent = '0%';
+  const btn = document.getElementById('btn-reg');
+  btn.disabled  = false;
+  btn.innerHTML = '<i class="fa fa-camera"></i> Activer la caméra & Capturer';
+  document.getElementById('zone-err').style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('inp-name')
+    .addEventListener('keydown', e => {
+      if (e.key === 'Enter') doRegister();
+    });
+});
+
+window.addEventListener('beforeunload', stopRegCam);
+</script>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Journal — BioAuth{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px">
+  <div>
+    <div class="pt"><i class="fa fa-list me-2"></i>Journal de Sécurité</div>
+    <div class="ps">Traçabilité complète — authentifications et événements sécurité</div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <form method="POST" action="{{ url_for('admin.logs_clear_auth') }}">
+      <button type="submit" class="btn-b danger"
+              onclick="return confirm('Vider le journal auth ?')">
+        <i class="fa fa-trash"></i> Vider auth
+      </button>
+    </form>
+    <form method="POST" action="{{ url_for('admin.logs_clear_security') }}">
+      <button type="submit" class="btn-b danger"
+              onclick="return confirm('Vider les événements sécurité ?')">
+        <i class="fa fa-trash"></i> Vider sécurité
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="card-b mb-4">
+  <div style="font-size:13px;font-weight:600;color:var(--cyan);margin-bottom:13px">
+    <i class="fa fa-fingerprint me-2"></i>Authentifications ({{ auth_logs|length }})
+  </div>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead>
+        <tr><th>Heure</th><th>Verdict</th><th>Utilisateur</th>
+            <th>Score</th><th>Liveness</th><th>Attaque</th><th>Note</th></tr>
+      </thead>
+      <tbody>
+        {% for l in auth_logs %}
+        <tr>
+          <td style="color:var(--text3)">{{ l.timestamp }}</td>
+          <td><span class="bx {{ 'bx-ok' if l.verdict=='ACCORDÉ' else ('bx-warn' if 'ATTAQUE' in l.verdict else 'bx-err') }}">
+            {{ l.verdict }}</span></td>
+          <td>{{ l.user_name }}</td>
+          <td>{{ '%.1f%%'|format(l.score) if l.score else '—' }}</td>
+          <td>{{ '✓' if l.liveness_ok else '✗' }}</td>
+          <td style="color:var(--text2)">{{ l.attack_type }}</td>
+          <td style="color:var(--text2)">{{ l.note }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Aucun log</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card-b">
+  <div style="font-size:13px;font-weight:600;color:var(--warn);margin-bottom:13px">
+    <i class="fa fa-shield me-2"></i>Événements sécurité ({{ sec_events|length }})
+  </div>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead>
+        <tr><th>Horodatage</th><th>Type</th><th>Sévérité</th><th>Utilisateur</th><th>Détails</th></tr>
+      </thead>
+      <tbody>
+        {% for e in sec_events %}
+        <tr>
+          <td style="color:var(--text3)">{{ e.timestamp }}</td>
+          <td>{{ e.event_type }}</td>
+          <td><span class="bx {{ 'bx-err' if e.severity=='CRITICAL' else ('bx-warn' if e.severity=='WARNING' else 'bx-info') }}">
+            {{ e.severity }}</span></td>
+          <td>{{ e.user_name }}</td>
+          <td style="color:var(--text2);font-size:11px">{{ e.details }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Aucun événement</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

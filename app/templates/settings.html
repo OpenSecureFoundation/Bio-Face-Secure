@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Paramètres — BioAuth{% endblock %}
+{% block content %}
+<div class="pt"><i class="fa fa-gear me-2"></i>Configuration Système</div>
+<div class="ps">Modifier les paramètres biométriques et de sécurité</div>
+
+<form method="POST" action="{{ url_for('admin.settings') }}">
+  <div class="row g-4">
+    <div class="col-md-6">
+      <div class="card-b ac">
+        <div style="font-size:13px;font-weight:600;color:var(--cyan);margin-bottom:15px">
+          <i class="fa fa-sliders me-2"></i>Paramètres biométriques
+        </div>
+        {% for k, label, hint, mn, mx, step in [
+          ('SIMILARITY_THRESHOLD',   'Seuil de similarité',    '(0.30=strict … 0.80=permissif)', '0.30','0.80','0.01'),
+          ('LIVENESS_EAR_THRESHOLD', 'Seuil EAR clignement',   '(défaut 0.25)', '0.15','0.40','0.01'),
+          ('LIVENESS_TIMEOUT_SEC',   'Timeout liveness (s)',   '(défaut 10)',   '5','30','1'),
+          ('MAX_LOGIN_ATTEMPTS',     'Max tentatives (5 min)', '(défaut 3)',    '1','10','1'),
+        ] %}
+        <div style="margin-bottom:13px">
+          <label style="font-size:12px;color:var(--text2);margin-bottom:4px;display:block">
+            {{ label }} <span style="color:var(--text3);font-size:10px">{{ hint }}</span>
+          </label>
+          <input type="number" name="{{ k }}"
+                 value="{{ env.get(k, '') }}"
+                 min="{{ mn }}" max="{{ mx }}" step="{{ step }}"
+                 class="inp">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card-b" style="border-top:3px solid var(--warn)">
+        <div style="font-size:13px;font-weight:600;color:var(--warn);margin-bottom:15px">
+          <i class="fa fa-shield me-2"></i>Sécurité
+        </div>
+        {% for k, label, hint in [
+          ('anti_spoofing', 'Anti-spoofing',         'Détecte photos et vidéos rejouées'),
+          ('audit_enabled', 'Audit & journalisation', 'Log de tous les événements sécurité'),
+        ] %}
+        <div style="display:flex;justify-content:space-between;align-items:center;
+                    padding:11px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:13px;font-weight:600">{{ label }}</div>
+            <div style="font-size:11px;color:var(--text3)">{{ hint }}</div>
+          </div>
+          <input type="checkbox" name="{{ k }}"
+                 {{ 'checked' if env.get(k.upper()+'_ENABLED','True')=='True' else '' }}
+                 style="width:18px;height:18px;accent-color:var(--cyan)">
+        </div>
+        {% endfor %}
+        <div class="card-b mt-3" style="border-top:3px solid var(--text3)">
+          <div style="font-size:12px;color:var(--text2)">
+            <i class="fa fa-lock me-2" style="color:var(--ok)"></i>
+            Chiffrement AES-256 — toujours actif, non désactivable.<br>
+            Clé : <code style="color:var(--cyan)">instance/.secret.key</code>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12">
+      <button type="submit" class="btn-b solid">
+        <i class="fa fa-floppy-disk"></i> Sauvegarder
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}
