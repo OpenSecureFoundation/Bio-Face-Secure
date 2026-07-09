@@ -9,7 +9,7 @@ Détection et encodage du visage 
 Comparaison avec base de données 
 Gestion des utilisateurs
 
-# Partie attaque (obligatoire)
+# Partie attaque
 tentative avec photo ou vidéo 
 contournement du système
 
