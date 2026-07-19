@@ -1,109 +1,137 @@
 import sqlite3
-import json
-import logging
-from cryptography.fernet import Fernet
+import numpy as np
 
-# Configuration de la Traçabilité complète (Logs)
-logging.basicConfig(
-    filename='biosecure_activity.log',
-    level=logging.INFO,
-    format='%(asctime)s - [%(levelname)s] - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-
-def generer_ou_charger_cle():
-    try:
-        with open("secret.key", "rb") as key_file:
-            return key_file.read()
-    except FileNotFoundError:
-        key = Fernet.generate_key()
-        with open("secret.key", "wb") as key_file:
-            key_file.write(key)
-        return key
-
-CLE_CHIFFREMENT = generer_ou_charger_cle()
-fernet = Fernet(CLE_CHIFFREMENT)
+DB_NAME = "bio_face_secure.db"
 
 def initialiser_bdd():
-    conn = sqlite3.connect("bio_face_secure.db")
+    conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    # Table Utilisateurs
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS utilisateurs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nom TEXT NOT NULL,
-            role TEXT NOT NULL,
-            signature_chiffree BLOB NOT NULL
-        )
-    ''')
-    # Table Paramètres pour ajuster le seuil de similarité (Exigence BF2)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS parametres (
-            cle TEXT PRIMARY KEY,
-            valeur REAL
-        )
-    ''')
-    cursor.execute("INSERT OR IGNORE INTO parametres (cle, valeur) VALUES ('seuil', 0.50)")
-    conn.commit()
-    conn.close()
-
-def log_evenement(niveau, message):
-    if niveau == "INFO":
-        logging.info(message)
-    elif niveau == "WARNING":
-        logging.warning(message)
-
-def récupérer_seuil():
-    conn = sqlite3.connect("bio_face_secure.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT valeur FROM parametres WHERE cle = 'seuil'")
-    seuil = cursor.fetchone()[0]
-    conn.close()
-    return seuil
-
-def modifier_seuil(nouveau_seuil):
-    conn = sqlite3.connect("bio_face_secure.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE parametres SET valeur = ? WHERE cle = 'seuil'", (nouveau_seuil,))
-    conn.commit()
-    conn.close()
-    log_evenement("INFO", f"Seuil de similarité ajusté à : {nouveau_seuil}")
-
-def enrôler_utilisateur(nom, role, vecteur_128D):
-    vecteur_json = json.dumps(vecteur_128D).encode()
-    vecteur_chiffre = fernet.encrypt(vecteur_json) # Chiffrement AES-256
     
-    conn = sqlite3.connect("bio_face_secure.db")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            fullname TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'USER',
+            encoding BLOB NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            status TEXT NOT NULL,
+            confidence REAL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+    """)
+    
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('seuil', '0.5')")
+    
+    conn.commit()
+    conn.close()
+
+def existe_administrateur():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'ADMIN'")
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count > 0
+
+def enroler_utilisateur(username, fullname, role, encoding):
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        encoding_bytes = encoding.astype(np.float64).tobytes()
+        cursor.execute(
+            "INSERT INTO users (username, fullname, role, encoding) VALUES (?, ?, ?, ?)",
+            (username, fullname, role, encoding_bytes)
+        )
+        conn.commit()
+        conn.close()
+        return True, f"Utilisateur {username} enrôlé avec succès."
+    except sqlite3.IntegrityError:
+        return False, f"L'utilisateur {username} existe déjà."
+    except Exception as e:
+        return False, f"Erreur lors de l'enrôlement : {str(e)}"
+
+def lister_utilisateurs():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, fullname, role, created_at FROM users")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def recuperer_utilisateurs():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, fullname, role, encoding FROM users")
+    rows = cursor.fetchall()
+    conn.close()
+    
+    users = []
+    for row in rows:
+        u_id, username, fullname, role, enc_blob = row
+        enc_array = np.frombuffer(enc_blob, dtype=np.float64)
+        users.append({
+            "id": u_id,
+            "username": username,
+            "fullname": fullname,
+            "role": role,
+            "encoding": enc_array
+        })
+    return users
+
+def supprimer_utilisateur(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+
+def recuperer_seuil():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT value FROM settings WHERE key = 'seuil'")
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return float(row[0])
+    return 0.5
+
+def log_evenement(username, status, confidence):
+    conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO utilisateurs (nom, role, signature_chiffree) VALUES (?, ?, ?)",
-        (nom, role, vecteur_chiffre)
+        "INSERT INTO logs (username, status, confidence) VALUES (?, ?, ?)",
+        (username, status, confidence)
     )
     conn.commit()
     conn.close()
-    log_evenement("INFO", f"Enrôlement réussi : {nom} ({role}) - Signature chiffrée stockée.")
 
-def recuperer_utilisateurs():
-    conn = sqlite3.connect("bio_face_secure.db")
+def obtenir_journaux_utilisateur():
+    conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, nom, role, signature_chiffree FROM utilisateurs")
-    lignes = cursor.fetchall()
+    cursor.execute("SELECT id, username, status, confidence, timestamp FROM logs ORDER BY id DESC")
+    rows = cursor.fetchall()
     conn.close()
-    
-    utilisateurs = []
-    for id_u, nom, role, vecteur_chiffre in lignes:
-        try:
-            vecteur_json = fernet.decrypt(vecteur_chiffre).decode()
-            vecteur_128D = json.loads(vecteur_json)
-            utilisateurs.append({"id": id_u, "nom": nom, "role": role, "vecteur": vecteur_128D})
-        except Exception:
-            continue
-    return utilisateurs
+    return rows
 
-def supprimer_utilisateur(id_utilisateur):
-    conn = sqlite3.connect("bio_face_secure.db")
+def obtenir_alertes_securite():
+    conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM utilisateurs WHERE id = ?", (id_utilisateur,))
-    conn.commit()
+    cursor.execute("SELECT id, username, status, confidence, timestamp FROM logs WHERE status LIKE '%FRAUDE%' OR status LIKE '%INCONNU%' ORDER BY id DESC")
+    rows = cursor.fetchall()
     conn.close()
-    log_evenement("INFO", f"Utilisateur ID {id_utilisateur} supprimé par l'administrateur.")
+    return rows
